@@ -1,0 +1,79 @@
+"""
+歷史照片補抓模組。
+
+用 Telethon（個人帳號）連線到指定頻道，從最新往回抓照片訊息，
+把圖片內容存成本地檔案，數量上限由 MAX_PHOTOS 控制。
+
+第一次執行需要互動式輸入手機驗證碼（Telegram app 收到的驗證碼，
+不是簡訊），登入成功後會在本地產生一個 .session 檔案，
+之後執行（包括被 main.py 自動呼叫時）就不需要再次輸入驗證碼。
+
+獨立執行（建議第一次先手動跑這個，完成登入）：
+    python backfill.py
+
+或被 main.py 在啟動時自動呼叫 run_backfill()。
+"""
+
+import os
+import asyncio
+import shutil
+from pathlib import Path
+
+from dotenv import load_dotenv
+from telethon import TelegramClient
+from telethon.tl.types import MessageMediaPhoto
+from telethon.network import ConnectionTcpAbridged
+
+load_dotenv()
+
+API_ID = int(os.getenv('TG_api_id'))
+API_HASH = os.getenv('TG_api_hash')
+
+SESSION_NAME = 'backfill_session'  # 會產生 backfill_session.session 檔案
+PHOTO_DIR = Path('photo_cache')    # 圖片存放資料夾
+MAX_PHOTOS = 1500                  # 抓取上限
+
+
+async def run_backfill(channel_id: int):
+    """清空舊快取，重新從頻道抓取最新 MAX_PHOTOS 張照片存到本地。"""
+
+    # 啟動時先清空舊資料夾，確保只留下這次抓到的內容
+    if PHOTO_DIR.exists():
+        shutil.rmtree(PHOTO_DIR)
+    PHOTO_DIR.mkdir(parents=True, exist_ok=True)
+
+    # 部分主機環境會擋預設的 TCP Full 連線方式，改用 Abridged 模式嘗試繞過
+    client = TelegramClient(
+        SESSION_NAME, API_ID, API_HASH,
+        connection=ConnectionTcpAbridged,
+        connection_retries=3,
+        timeout=15,
+    )
+    await client.start()  # 已有 session 檔案時不會要求輸入驗證碼
+
+    saved_count = 0
+    print(f'開始從頻道抓取歷史照片，上限 {MAX_PHOTOS} 張...')
+
+    async for message in client.iter_messages(channel_id):
+        if saved_count >= MAX_PHOTOS:
+            break
+
+        if message.media and isinstance(message.media, MessageMediaPhoto):
+            file_path = PHOTO_DIR / f'{message.id}.jpg'
+            try:
+                await client.download_media(message, file=str(file_path))
+                saved_count += 1
+                if saved_count % 100 == 0:
+                    print(f'已抓取 {saved_count} 張...')
+            except Exception as e:
+                print(f'下載訊息 {message.id} 失敗: {e}')
+                continue
+
+    print(f'完成，共抓取 {saved_count} 張照片，存放於 {PHOTO_DIR.resolve()}')
+    await client.disconnect()
+
+
+if __name__ == '__main__':
+    channel_id = int(os.getenv('TG_CHANNEL_ID'))
+    asyncio.run(run_backfill(channel_id))
+

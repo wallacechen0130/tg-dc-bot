@@ -3,6 +3,7 @@ import asyncio
 from dotenv import load_dotenv
 from telegram_bot import TelegramBot
 from discord_bot import setup_discord
+from backfill import run_backfill
 
 load_dotenv()
 
@@ -10,6 +11,11 @@ async def main():
     tg_token = os.getenv('TG_TOKEN')
     tg_channel_id = int(os.getenv('TG_CHANNEL_ID'))
     dc_token = os.getenv('DC_TOKEN')
+
+    # 每次啟動先重新抓取最新 1500 張歷史照片到本地快取
+    # (第一次執行需先手動跑過 backfill.py 完成 Telethon 登入，
+    #  產生 session 檔案後，這裡才能無互動自動執行)
+    await run_backfill(tg_channel_id)
 
     tg_bot = TelegramBot(tg_token, tg_channel_id)
     await tg_bot.start()
@@ -20,4 +26,3 @@ if __name__ == '__main__':
     asyncio.run(main())
 
     #py -3.13 "c:\claude_projects\TG-DC bot\main.py"
-

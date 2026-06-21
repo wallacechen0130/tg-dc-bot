@@ -1,4 +1,4 @@
-import os
+﻿import os
 import asyncio
 from dotenv import load_dotenv
 from telegram_bot import TelegramBot
@@ -20,4 +20,3 @@ if __name__ == '__main__':
     asyncio.run(main())
 
     #py -3.13 "c:\claude_projects\TG-DC bot\main.py"
-

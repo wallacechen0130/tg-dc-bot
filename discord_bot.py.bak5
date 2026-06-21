@@ -1,7 +1,6 @@
 ﻿import discord
 import io
 import re
-import random
 from discord.ext import commands
 from telegram_bot import TelegramBot
 
@@ -9,20 +8,6 @@ from telegram_bot import TelegramBot
 TRIGGER_PATTERN = re.compile(r'^!瑟圖(\d*)$')
 MAX_PHOTOS_PER_REQUEST = 20  # 單次請求上限，避免洗版或過度負載
 DISCORD_FILES_PER_MESSAGE = 10  # Discord 單則訊息附加檔案上限
-
-SPLIT_TRIGGER = '!掰開'
-
-# 特殊數字觸發，輸出固定的彩蛋圖片，不走一般抓圖流程
-SPECIAL_PHOTO_NUMBER = 114514
-SPECIAL_PHOTO_PATH = 'images/special.jpg'
-
-# 固定的隨機抽取名單，把要參與抽取的人的 user ID 填進來
-# 範例: <@847474387275218974>
-SPLIT_CANDIDATE_IDS = [
-    1008374265067864194, 1390260262887755786, 847474387275218974, 1517597711182987457,
-    947347517635432498, 766882882676719658, 1297465537118605353, 939841883818045470,
-    1296121403434864652, 1084434455889981502, 1352082957958905916,
-]
 
 
 class DiscordBot(commands.Cog):
@@ -35,21 +20,12 @@ class DiscordBot(commands.Cog):
         if message.author == self.bot.user:
             return
 
-        if message.content.strip() == SPLIT_TRIGGER:
-            await self.handle_split(message)
-            return
-
         match = TRIGGER_PATTERN.match(message.content.strip())
         if not match:
             return
 
         count_str = match.group(1)
         count = int(count_str) if count_str else 1
-
-        # 特殊數字彩蛋，輸出固定圖片，不走一般抓圖流程
-        if count == SPECIAL_PHOTO_NUMBER:
-            await self.handle_special_photo(message)
-            return
 
         if count < 1:
             await message.channel.send('數量必須至少為 1。')
@@ -76,20 +52,6 @@ class DiscordBot(commands.Cog):
 
         if len(photos) < count:
             await message.channel.send(f'目前圖片庫只有 {len(photos)} 張可用，已全部送出。')
-
-    async def handle_special_photo(self, message):
-        try:
-            await message.channel.send(file=discord.File(SPECIAL_PHOTO_PATH))
-        except FileNotFoundError:
-            await message.channel.send(f'找不到特定圖片，請確認 {SPECIAL_PHOTO_PATH} 是否存在。')
-
-    async def handle_split(self, message):
-        if not SPLIT_CANDIDATE_IDS:
-            await message.channel.send('名單是空的，請先設定 SPLIT_CANDIDATE_IDS。')
-            return
-
-        chosen_id = random.choice(SPLIT_CANDIDATE_IDS)
-        await message.channel.send(f'<@{chosen_id}> 自己掰開')
 
 
 async def setup_discord(bot_token: str, tg_bot: TelegramBot):
